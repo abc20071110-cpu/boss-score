@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0d0f14" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>三 Boss 积分计算器 · 正算 / 逆推</title>
+<style>
+  :root{
+    --bg:#0d0f14; --panel:#151922; --panel-2:#1a1f2a; --line:#2a3140;
+    --text:#e8ecf4; --muted:#8b95a7; --gold:#f2b84b;
+    --knight:#6ea8fe; --chaos:#b18cff; --hell:#ff8a65;
+    --err:#ff6b6b;
+    --bar-h:64px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 600px at 12% -10%, #1a2233 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 8%, #241a2b 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font:15px/1.5 "Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    -webkit-text-size-adjust:100%;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 20px 64px}
+  h1{font-size:24px;margin:0;letter-spacing:.4px}
+  h1 em{font-style:normal;color:var(--gold)}
+  .sub{color:var(--muted);font-size:13px;margin:7px 0 0}
+
+  .tabs{display:flex;gap:6px;margin:24px 0 18px;border-bottom:1px solid var(--line)}
+  .tab{background:none;border:none;color:var(--muted);font:inherit;font-weight:600;
+       padding:12px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .grid-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+  .grid-head .tip{font-size:12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+  .boss{background:linear-gradient(180deg,var(--panel-2),var(--panel));
+        border:1px solid var(--line);border-radius:14px;padding:16px}
+  .boss-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .badge{font-size:12px;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase}
+  .boss-total{font:700 20px/1 ui-monospace,Consolas,monospace;color:var(--gold)}
+  .row{display:grid;grid-template-columns:48px 1fr 92px;align-items:center;gap:10px;margin:8px 0}
+  .lab{font-size:13px;color:var(--muted)}
+  .lab.knight{color:var(--knight)}
+  .lab.chaos{color:var(--chaos)}
+  .lab.hell{color:var(--hell)}
+  input[type=number]{
+    width:100%;background:#0a0d13;border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:9px 10px;font:600 15px ui-monospace,Consolas,monospace;
+    outline:none;-moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,184,75,.12)}
+  input[type=number].bad{border-color:var(--err)}
+  .pts{text-align:right;font:600 14px ui-monospace,Consolas,monospace;color:#c9d3e6}
+  .hint{min-height:17px;font-size:12px;color:var(--err);margin-top:4px}
+
+  .summary{margin-top:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+           background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .sum-item .k{font-size:12px;color:var(--muted);margin-bottom:5px}
+  .sum-item .v{font:700 18px ui-monospace,Consolas,monospace}
+  .sum-item.grand .v{color:var(--gold);font-size:24px}
+
+  /* 手机底部实时汇总条（桌面隐藏） */
+  .bar{display:none}
+
+  .rev-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .modes{display:flex;gap:22px;margin-bottom:16px;font-size:14px}
+  .modes label{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--muted)}
+  .modes input{accent-color:var(--gold);width:16px;height:16px}
+  .rev-inputs{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .rev-inputs .box{display:flex;flex-direction:column;gap:6px}
+  .rev-inputs .box span{font-size:12px;color:var(--muted)}
+  .rev-inputs input{width:172px}
+  button{font:inherit}
+  button.primary{background:linear-gradient(180deg,#f6c45f,#e0a127);color:#1a1205;
+                 border:none;border-radius:9px;padding:11px 20px;font-weight:700;cursor:pointer}
+  button.primary:hover{filter:brightness(1.06)}
+  button.primary:active{transform:translateY(1px)}
+  button.ghost{background:none;border:1px solid var(--line);color:var(--muted);
+               border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer}
+  button.ghost:hover{color:var(--text);border-color:#3a4356}
+
+  .sol{margin-top:20px}
+  .sol h3{font-size:15px;margin:0 0 9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .badge-count{background:rgba(242,184,75,.13);color:var(--gold);border-radius:999px;
+               padding:2px 10px;font-size:12px;font-weight:600}
+  .badge-count.none{background:rgba(255,107,107,.12);color:var(--err)}
+  .empty{color:var(--muted);font-size:14px}
+  .scroll{max-height:320px;overflow:auto;-webkit-overflow-scrolling:touch;
+          border:1px solid var(--line);border-radius:10px}
+  table{width:100%;border-collapse:collapse;font:13px ui-monospace,Consolas,monospace}
+  th,td{padding:7px 11px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  thead th{position:sticky;top:0;background:#11151d;color:var(--muted);font:600 12px "Segoe UI",sans-serif}
+  tr:last-child td{border-bottom:none}
+  td:first-child,th:first-child,td:nth-child(2),th:nth-child(2),
+  td:nth-child(3),th:nth-child(3){text-align:left}
+  details.near{margin-top:9px;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:#11151d}
+  details.near summary{cursor:pointer;padding:10px 0;color:#c9d3e6;font-size:13px}
+  details.near .scroll{margin-bottom:10px}
+
+  details.data{margin-top:20px;border:1px solid var(--line);border-radius:12px;padding:0 14px;background:var(--panel)}
+  details.data summary{cursor:pointer;padding:12px 0;color:var(--muted);font-size:13px}
+  details.data .scroll{margin:4px 0 12px}
+  .note{font-size:12px;color:var(--muted);margin:0 0 12px}
+
+  /* ============ 手机 / 窄屏 ============ */
+  @media (max-width:880px){
+    .wrap{padding:18px 14px calc(var(--bar-h) + 28px + env(safe-area-inset-bottom))}
+    h1{font-size:20px}
+    .sub{font-size:12px}
+    .tabs{position:sticky;top:0;z-index:40;margin:16px -14px 14px;padding:0 14px;
+          background:rgba(13,15,20,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+    .tab{padding:12px 14px;font-size:14px}
+    .grid{grid-template-columns:1fr;gap:12px}
+    .boss{padding:14px}
+    .row{grid-template-columns:46px 1fr 86px;gap:9px;margin:7px 0}
+    input[type=number]{font-size:16px;min-height:46px;padding:10px}
+    .pts{font-size:14px}
+    .summary{display:none}
+    .rev-box{padding:14px}
+    .modes{flex-direction:column;gap:10px}
+    .rev-inputs{flex-direction:column;align-items:stretch;gap:12px}
+    .rev-inputs .box{width:100%}
+    .rev-inputs input{width:100%;font-size:16px;min-height:46px}
+    button.primary{width:100%;min-height:48px;font-size:16px}
+    .scroll{max-height:52vh}
+    table{font-size:12.5px}
+    th,td{padding:7px 9px}
+
+    body[data-tab="forward"] .bar{
+      display:grid;position:fixed;left:0;right:0;bottom:0;z-index:50;
+      grid-template-columns:0.85fr 0.85fr 0.85fr 1.45fr;gap:4px;
+      padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+      background:rgba(13,15,20,.94);
+      -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+      border-top:1px solid var(--line);
+    }
+    .bar .cell{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+    .bar .cell span{font-size:10.5px;color:var(--muted);letter-spacing:.5px}
+    .bar .cell b{font:700 13.5px ui-monospace,Consolas,monospace;color:#dfe6f2;
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .bar .cell.total b{color:var(--gold);font-size:14px}
+  }
+  @media (max-width:380px){
+    .bar .cell b{font-size:12px}
+    .bar .cell.total b{font-size:13px}
+  }
+</style>
+</head>
+<body data-tab="forward">
+<div class="wrap">
+  <header>
+    <h1>三 Boss <em>积分计算器</em></h1>
+    <p class="sub">骑士 / 混沌 / 地狱 秒数 → 分数 · 支持单组正算与逆推</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="forward" role="tab">正算 · 秒数 → 分数</button>
+    <button class="tab" data-tab="reverse" role="tab">逆推 · 分数 → 秒数</button>
+  </div>
+
+  <!-- ========== 正算 ========== -->
+  <section id="forward" class="panel active">
+    <div class="grid-head">
+      <span class="tip">每个 Boss 填三项秒数，分数与总分实时计算</span>
+      <button class="ghost" id="resetAll">清空</button>
+    </div>
+    <div class="grid" id="bossGrid"></div>
+
+    <div class="summary">
+      <div class="sum-item"><div class="k">Boss 1 总分</div><div class="v" id="sum1">—</div></div>
+      <div class="sum-item"><div class="k">Boss 2 总分</div><div class="v" id="sum2">—</div></div>
+      <div class="sum-item"><div class="k">Boss 3 总分</div><div class="v" id="sum3">—</div></div>
+      <div class="sum-item grand"><div class="k">三 Boss 总分</div><div class="v" id="sumTotal">—</div></div>
+    </div>
+
+    <details class="data">
+      <summary>查看原始分数表（6–25 秒）</summary>
+      <div class="scroll" id="dataTable"></div>
+      <p class="note">空白表示该难度没有对应秒数的分数。若与游戏内数值有出入，可修改本文件中的 SCORE 数据。</p>
+    </details>
+  </section>
+
+  <!-- ========== 逆推 ========== -->
+  <section id="reverse" class="panel">
+    <div class="rev-box">
+      <div class="modes">
+        <label><input type="radio" name="revMode" value="one" checked /> 单个 Boss 总分</label>
+        <label><input type="radio" name="revMode" value="three" /> 三个 Boss 总分</label>
+      </div>
+
+      <div class="rev-inputs" id="revOne">
+        <div class="box">
+          <span>Boss 总分</span>
+          <input type="number" id="oneTotal" step="1" inputmode="numeric" placeholder="例如 622022" />
+        </div>
+        <button class="primary" id="btnOne">逆推</button>
+      </div>
+
+      <div class="rev-inputs" id="revThree" hidden>
+        <div class="box"><span>Boss 1 总分</span><input type="number" id="t1" step="1" inputmode="numeric" /></div>
+        <div class="box"><span>Boss 2 总分</span><input type="number" id="t2" step="1" inputmode="numeric" /></div>
+        <div class="box"><span>Boss 3 总分</span><input type="number" id="t3" step="1" inputmode="numeric" /></div>
+        <button class="primary" id="btnThree">逆推三组</button>
+      </div>
+
+      <div id="revResult"></div>
+    </div>
+  </section>
+</div>
+
+<!-- 手机底部实时汇总 -->
+<div class="bar" id="bar">
+  <div class="cell"><span>BOSS 1</span><b id="bar1">—</b></div>
+  <div class="cell"><span>BOSS 2</span><b id="bar2">—</b></div>
+  <div class="cell"><span>BOSS 3</span><b id="bar3">—</b></div>
+  <div class="cell total"><span>总计</span><b id="barTotal">—</b></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- 分数表：秒数 -> 分数 ---------- */
+  const SCORE = {
+    knight: { 6:90924, 7:90632, 8:90340, 9:90050, 10:89760,
+              11:89472, 12:89184, 13:88898, 14:88612 },
+    chaos:  { 6:181849, 7:181264, 8:180681, 9:180100, 10:179521,
+              11:178944, 12:178369, 13:177796, 14:177225, 15:176656,
+              16:176089, 17:175524, 18:174961, 19:174400, 20:173841 },
+    hell:   { 6:363698, 7:362528, 8:361362, 9:360200, 10:359042,
+              11:357888, 12:356738, 13:355592, 14:354450, 15:353313,
+              16:352178, 17:351048, 18:349922, 19:348800, 20:347547,
+              21:346568, 22:345458, 23:344352, 24:343250, 25:342152 }
+  };
+
+  const DIFFS = [['knight','骑士'], ['chaos','混沌'], ['hell','地狱']];
+  const fmt = n => n.toLocaleString('en-US');
+  const STORE_KEY = 'bossScore.v1';
+
+  const KEYS = {}, RANGE = {};
+  for (const [d] of DIFFS) {
+    const ks = Object.keys(SCORE[d]).map(Number).sort((a,b)=>a-b);
+    KEYS[d] = ks;
+    RANGE[d] = [ks[0], ks[ks.length - 1]];
+  }
+
+  /* ---------- 预先枚举全部组合，建立 总分 -> 秒数组合 索引 ---------- */
+  const TOTAL_MAP = new Map();
+  for (const k of KEYS.knight)
+    for (const c of KEYS.chaos)
+      for (const h of KEYS.hell) {
+        const t = SCORE.knight[k] + SCORE.chaos[c] + SCORE.hell[h];
+        let arr = TOTAL_MAP.get(t);
+        if (!arr) { arr = []; TOTAL_MAP.set(t, arr); }
+        arr.push({ k, c, h, t });
+      }
+  const TOTALS = [...TOTAL_MAP.keys()].sort((a,b)=>a-b);
+
+  /* ---------- 正算：三张 Boss 卡片 ---------- */
+  const grid = document.getElementById('bossGrid');
+  const cards = [];
+  const state = [null, null, null];
+
+  for (let i = 0; i < 3; i++) {
+    const el = document.createElement('article');
+    el.className = 'boss';
+    el.innerHTML =
+      '<div class="boss-head"><span class="badge">Boss ' + (i+1) + '</span>' +
+      '<span class="boss-total" data-total>—</span></div>' +
+      DIFFS.map(function (pair) {
+        const d = pair[0], label = pair[1], r = RANGE[d];
+        return '<div class="row">' +
+          '<span class="lab ' + d + '">' + label + '</span>' +
+          '<input type="number" step="1" inputmode="numeric" autocomplete="off" ' +
+          'placeholder="' + r[0] + '–' + r[1] + '" data-input="' + d + '">' +
+          '<span class="pts" data-pts="' + d + '">—</span></div>';
+      }).join('') +
+      '<div class="hint" data-hint></div>';
+
+    grid.appendChild(el);
+    cards.push(el);
+
+    el.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', function () { updateBoss(i); });
+    });
+  }
+
+  function updateBoss(i) {
+    const card = cards[i];
+    const hintEl = card.querySelector('[data-hint]');
+    const totalEl = card.querySelector('[data-total]');
+    let total = 0, ok = true, err = '';
+
+    for (const pair of DIFFS) {
+      const d = pair[0], label = pair[1];
+      const inp = card.querySelector('[data-input="' + d + '"]');
+      const pts = card.querySelector('[data-pts="' + d + '"]');
+      inp.classList.remove('bad');
+
+      const raw = inp.value.trim();
+      if (raw === '') { pts.textContent = '—'; ok = false; continue; }
+
+      const n = Number(raw);
+      if (!/^\d+$/.test(raw) || !(n in SCORE[d])) {
+        const r = RANGE[d];
+        inp.classList.add('bad');
+        pts.textContent = '✕';
+        ok = false;
+        if (!err) err = label + '秒数需为 ' + r[0] + '–' + r[1] + ' 的整数';
+        continue;
+      }
+      pts.textContent = fmt(SCORE[d][n]);
+      total += SCORE[d][n];
+    }
+
+    hintEl.textContent = err;
+    if (ok) {
+      totalEl.textContent = fmt(total);
+      state[i] = total;
+    } else {
+      totalEl.textContent = '—';
+      state[i] = null;
+    }
+    updateSummary();
+    saveState();
+  }
+
+  function updateSummary() {
+    let sum = 0, done = 0;
+    state.forEach(function (v, i) {
+      const txt = v === null ? '—' : fmt(v);
+      document.getElementById('sum' + (i + 1)).textContent = txt;
+      document.getElementById('bar' + (i + 1)).textContent = txt;
+      if (v !== null) { sum += v; done++; }
+    });
+    const grand = done === 0 ? '—' : fmt(sum) + (done < 3 ? '（' + done + '/3）' : '');
+    document.getElementById('sumTotal').textContent = grand;
+    document.getElementById('barTotal').textContent = grand;
+  }
+
+  /* ---------- 本地保存 / 恢复（手机刷新不丢数据） ---------- */
+  function saveState() {
+    try {
+      const data = cards.map(function (card) {
+        const o = {};
+        DIFFS.forEach(function (pair) {
+          o[pair[0]] = card.querySelector('[data-input="' + pair[0] + '"]').value;
+        });
+        return o;
+      });
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function loadState() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return; }
+    if (!Array.isArray(data)) return;
+    data.forEach(function (obj, i) {
+      if (!obj || !cards[i]) return;
+      DIFFS.forEach(function (pair) {
+        const v = obj[pair[0]];
+        if (v) cards[i].querySelector('[data-input="' + pair[0] + '"]').value = v;
+      });
+      updateBoss(i);
+    });
+  }
+
+  document.getElementById('resetAll').addEventListener('click', function () {
+    cards.forEach(function (card, i) {
+      card.querySelectorAll('input').forEach(function (inp) { inp.value = ''; inp.classList.remove('bad'); });
+      card.querySelectorAll('[data-pts]').forEach(function (p) { p.textContent = '—'; });
+      card.querySelector('[data-total]').textContent = '—';
+      card.querySelector('[data-hint]').textContent = '';
+      state[i] = null;
+    });
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    updateSummary();
+  });
+
+  /* ---------- 逆推 ---------- */
+  const revResult = document.getElementById('revResult');
+
+  function solutionBlock(title, total) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sol';
+
+    const h = document.createElement('h3');
+    h.textContent = title;
+    wrap.appendChild(h);
+
+    const combos = TOTAL_MAP.get(total);
+    if (combos) {
+      const tag = document.createElement('span');
+      tag.className = 'badge-count';
+      tag.textContent = combos.length + ' 组解';
+      h.appendChild(tag);
+      wrap.appendChild(combosTable(combos));
+      return wrap;
+    }
+
+    const tag = document.createElement('span');
+    tag.className = 'badge-count none';
+    tag.textContent = '无精确解';
+    h.appendChild(tag);
+
+    const p = document.createElement('div');
+    p.className = 'empty';
+    p.textContent = '没有任何秒数组合正好等于该总分。以下是最接近的可达总分：';
+    wrap.appendChild(p);
+
+    const near = TOTALS
+      .map(function (t) { return { t: t, d: Math.abs(t - total) }; })
+      .sort(function (a, b) { return a.d - b.d; })
+      .slice(0, 5);
+
+    near.forEach(function (n) {
+      const det = document.createElement('details');
+      det.className = 'near';
+      const sum = document.createElement('summary');
+      const sign = n.t > total ? '+' : '−';
+      sum.textContent = fmt(n.t) + '　（' + sign + fmt(n.d) + '）· ' +
+                        TOTAL_MAP.get(n.t).length + ' 组解';
+      det.appendChild(sum);
+      det.appendChild(combosTable(TOTAL_MAP.get(n.t)));
+      wrap.appendChild(det);
+    });
+
+    return wrap;
+  }
+
+  function combosTable(arr) {
+    const box = document.createElement('div');
+    box.className = 'scroll';
+    const tbl = document.createElement('table');
+    tbl.innerHTML =
+      '<thead><tr><th>骑士秒</th><th>混沌秒</th><th>地狱秒</th>' +
+      '<th>骑士分</th><th>混沌分</th><th>地狱分</th><th>合计</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    arr.forEach(function (x) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + x.k + '</td><td>' + x.c + '</td><td>' + x.h + '</td>' +
+        '<td>' + fmt(SCORE.knight[x.k]) + '</td>' +
+        '<td>' + fmt(SCORE.chaos[x.c]) + '</td>' +
+        '<td>' + fmt(SCORE.hell[x.h]) + '</td>' +
+        '<td>' + fmt(x.t) + '</td>';
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    box.appendChild(tbl);
+    return box;
+  }
+
+  function parseTotal(raw) {
+    const n = Number(raw);
+    return (raw !== '' && Number.isFinite(n)) ? n : null;
+  }
+
+  function runOne() {
+    const v = document.getElementById('oneTotal').value.trim();
+    const n = parseTotal(v);
+    revResult.innerHTML = '';
+    if (n === null) {
+      revResult.innerHTML = '<div class="sol empty">请输入有效的总分</div>';
+      return;
+    }
+    revResult.appendChild(solutionBlock('单个 Boss 总分 ' + fmt(n), n));
+  }
+
+  function runThree() {
+    revResult.innerHTML = '';
+    [1, 2, 3].forEach(function (i) {
+      const raw = document.getElementById('t' + i).value.trim();
+      const n = parseTotal(raw);
+      if (n === null) {
+        const d = document.createElement('div');
+        d.className = 'sol empty';
+        d.textContent = 'Boss ' + i + '：未输入有效总分';
+        revResult.appendChild(d);
+        return;
+      }
+      revResult.appendChild(solutionBlock('Boss ' + i + ' · 总分 ' + fmt(n), n));
+    });
+  }
+
+  document.getElementById('btnOne').addEventListener('click', runOne);
+  document.getElementById('btnThree').addEventListener('click', runThree);
+  document.getElementById('oneTotal').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') runOne();
+  });
+  ['t1', 't2', 't3'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') runThree();
+    });
+  });
+
+  /* ---------- 模式切换 ---------- */
+  const revOne = document.getElementById('revOne');
+  const revThree = document.getElementById('revThree');
+  document.querySelectorAll('input[name="revMode"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      const isOne = r.value === 'one';
+      revOne.hidden = !isOne;
+      revThree.hidden = isOne;
+      revResult.innerHTML = '';
+    });
+  });
+
+  /* ---------- 标签页切换 ---------- */
+  document.querySelectorAll('.tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      document.body.dataset.tab = btn.dataset.tab;
+    });
+  });
+
+  /* ---------- 原始数据表 ---------- */
+  (function buildDataTable() {
+    const box = document.getElementById('dataTable');
+    const tbl = document.createElement('table');
+    tbl.innerHTML = '<thead><tr><th>秒数</th><th>骑士</th><th>混沌</th><th>地狱</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    for (let s = 6; s <= 25; s++) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + s + '</td>' +
+        '<td>' + (SCORE.knight[s] ? fmt(SCORE.knight[s]) : '—') + '</td>' +
+        '<td>' + (SCORE.chaos[s] ? fmt(SCORE.chaos[s]) : '—') + '</td>' +
+        '<td>' + (SCORE.hell[s] ? fmt(SCORE.hell[s]) : '—') + '</td>';
+      tb.appendChild(tr);
+    }
+    tbl.appendChild(tb);
+    box.appendChild(tbl);
+  })();
+
+  loadState();
+})();
+</script>
+</body>
+</html>
